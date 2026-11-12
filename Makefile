@@ -1,10 +1,16 @@
-.PHONY: check lint test
+.PHONY: check lint format typecheck test
 
 # The quality gate the agent runs before opening a pull request.
-check: lint test
+check: lint format typecheck test
 
 lint:
 	uv run --with ruff ruff check .
 
+format:
+	uv run --with ruff ruff format --check .
+
+typecheck:
+	uv run --extra dev mypy src
+
 test:
-	uv run --with pytest python -m pytest
+	uv run --extra dev python -m pytest
