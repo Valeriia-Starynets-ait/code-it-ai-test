@@ -5,8 +5,10 @@ Subcommands:
   ask      answer a question and print the cited answer
   eval     run the RAGAS-style harness over a built-in eval set and gate on it
 
-Everything runs against the in-memory fake client, so no AWS credentials or
-network access are required.
+``--backend fake`` (the default) uses the in-memory client, so no AWS
+credentials or network access are required. ``--backend bedrock`` wires the real
+:class:`rag.bedrock.BedrockKnowledgeBase` adapter against live AWS and is never
+exercised by the test suite.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from rag.generation import TemplateGenerator
 from rag.ingestion import load_documents_from_jsonl, sample_corpus
 from rag.models import Answer
 from rag.pipeline import RagPipeline
+from rag.ports import Generator, Ingestor, Retriever
 from rag.retrieval import FakeKnowledgeBaseClient
 
 logger = logging.getLogger(__name__)
@@ -49,12 +52,34 @@ _EVAL_SET: tuple[EvalSample, ...] = (
 )
 
 
-def _build_pipeline(settings: Settings) -> tuple[RagPipeline, FakeKnowledgeBaseClient]:
+def _build_bedrock_backend(settings: Settings) -> tuple[Retriever, Ingestor, Generator]:
+    # Imported lazily so the default fake path needs no boto3 import or creds.
+    import boto3
+
+    from rag.bedrock import BedrockKnowledgeBase
+
+    runtime = boto3.client("bedrock-agent-runtime", region_name=settings.aws_region)
+    agent = boto3.client("bedrock-agent", region_name=settings.aws_region)
+    adapter = BedrockKnowledgeBase(runtime, agent, settings)
+    return adapter, adapter, adapter
+
+
+def _build_ingestor(backend: str, settings: Settings) -> Ingestor:
+    """An empty ingestor (fresh fake client, or the real adapter)."""
+    if backend == "bedrock":
+        retriever, ingestor, _ = _build_bedrock_backend(settings)
+        return ingestor
+    return FakeKnowledgeBaseClient(min_score=settings.min_score)
+
+
+def _build_pipeline(backend: str, settings: Settings) -> RagPipeline:
+    """A query-ready pipeline. The fake backend is pre-seeded with the sample corpus."""
+    if backend == "bedrock":
+        retriever, _, generator = _build_bedrock_backend(settings)
+        return RagPipeline(retriever, generator, top_k=settings.top_k)
     client = FakeKnowledgeBaseClient(min_score=settings.min_score)
     client.ingest(sample_corpus())
-    generator = TemplateGenerator()
-    pipeline = RagPipeline(client, generator, top_k=settings.top_k)
-    return pipeline, client
+    return RagPipeline(client, TemplateGenerator(), top_k=settings.top_k)
 
 
 def _format_answer(answer: Answer) -> str:
@@ -66,22 +91,22 @@ def _format_answer(answer: Answer) -> str:
 
 
 def _cmd_ingest(args: argparse.Namespace, settings: Settings) -> int:
-    client = FakeKnowledgeBaseClient(min_score=settings.min_score)
+    ingestor = _build_ingestor(args.backend, settings)
     documents = load_documents_from_jsonl(Path(args.corpus)) if args.corpus else list(sample_corpus())
-    indexed = client.ingest(documents)
+    indexed = ingestor.ingest(documents)
     print(f"ingested {indexed} document(s)")
     return 0
 
 
 def _cmd_ask(args: argparse.Namespace, settings: Settings) -> int:
-    pipeline, _ = _build_pipeline(settings)
+    pipeline = _build_pipeline(args.backend, settings)
     answer = pipeline.answer(args.question)
     print(_format_answer(answer))
     return 0
 
 
 def _cmd_eval(args: argparse.Namespace, settings: Settings) -> int:
-    pipeline, _ = _build_pipeline(settings)
+    pipeline = _build_pipeline(args.backend, settings)
     answers = [pipeline.answer(sample.question) for sample in _EVAL_SET]
     report = evaluate(answers, _EVAL_SET)
     print("Retrieval:")
@@ -97,7 +122,13 @@ def _cmd_eval(args: argparse.Namespace, settings: Settings) -> int:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="rag", description="Bedrock KB RAG pipeline (local fake client).")
+    parser = argparse.ArgumentParser(prog="rag", description="Bedrock KB RAG pipeline.")
+    parser.add_argument(
+        "--backend",
+        choices=("fake", "bedrock"),
+        default="fake",
+        help="fake (default, no AWS) or bedrock (live Knowledge Base)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_ingest = sub.add_parser("ingest", help="ingest a corpus")

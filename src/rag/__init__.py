@@ -5,6 +5,7 @@ orchestrator. Infrastructure clients (ingestion, retrieval, generation) live in
 their own modules and are injected into the pipeline.
 """
 
+from rag.bedrock import BedrockKnowledgeBase
 from rag.config import Settings
 from rag.exceptions import (
     GenerationError,
@@ -12,6 +13,7 @@ from rag.exceptions import (
     RagError,
     RetrievalError,
 )
+from rag.filters import EqualsCondition, build_metadata_filter
 from rag.models import (
     Answer,
     Citation,
@@ -23,8 +25,10 @@ from rag.pipeline import RagPipeline
 
 __all__ = [
     "Answer",
+    "BedrockKnowledgeBase",
     "Citation",
     "Document",
+    "EqualsCondition",
     "GeneratedAnswer",
     "GenerationError",
     "IngestionError",
@@ -33,4 +37,5 @@ __all__ = [
     "RetrievalError",
     "RetrievedPassage",
     "Settings",
+    "build_metadata_filter",
 ]

@@ -17,6 +17,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # configured dimension does not match the model, so this pair is chosen together.
 DEFAULT_EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
 DEFAULT_EMBEDDING_DIMENSION = 1024
+# Default answer model for retrieve_and_generate.
+DEFAULT_GENERATION_MODEL = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+# Over-fetch factor when reranking: fetch ~1.6x topK then rerank down (skill step 6).
+RERANK_OVERFETCH_FACTOR = 1.6
 
 
 class ChunkingStrategy(str, Enum):
@@ -49,11 +53,23 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     knowledge_base_id: str = Field(default="kb-local-fake", min_length=1)
+    data_source_id: str = Field(default="ds-local-fake", min_length=1)
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
     embedding_dimension: int = Field(default=DEFAULT_EMBEDDING_DIMENSION, ge=1)
-    chunking_strategy: ChunkingStrategy = ChunkingStrategy.FIXED_SIZE
+    chunking_strategy: ChunkingStrategy = ChunkingStrategy.HIERARCHICAL
     chunk_max_tokens: int = Field(default=300, ge=1)
     chunk_overlap_percent: int = Field(default=20, ge=0, le=99)
 
     top_k: int = Field(default=5, ge=1, le=100)
     min_score: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    # Generation via retrieve_and_generate.
+    generation_model: str = DEFAULT_GENERATION_MODEL
+    # Optional Bedrock Guardrail applied to the generation output.
+    guardrail_id: str | None = None
+    guardrail_version: str | None = None
+    # Optional Bedrock rerank model ARN; when set, over-fetch then rerank down.
+    rerank_model_arn: str | None = None
+    # Seconds to wait for ingestion to finish before treating it as failed.
+    ingestion_timeout_seconds: int = Field(default=300, ge=1)
+    ingestion_poll_interval_seconds: float = Field(default=2.0, gt=0.0)

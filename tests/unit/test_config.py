@@ -16,6 +16,12 @@ def test_defaults_match_titan_embed_v2() -> None:
     settings = Settings()
     assert settings.embedding_model == DEFAULT_EMBEDDING_MODEL
     assert settings.embedding_dimension == DEFAULT_EMBEDDING_DIMENSION
+    # Hierarchical is the deliberate default; see the README for the reason.
+    assert settings.chunking_strategy is ChunkingStrategy.HIERARCHICAL
+
+
+def test_chunking_strategy_is_configurable() -> None:
+    settings = Settings(chunking_strategy=ChunkingStrategy.FIXED_SIZE)
     assert settings.chunking_strategy is ChunkingStrategy.FIXED_SIZE
 
 

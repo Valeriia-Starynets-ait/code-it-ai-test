@@ -10,7 +10,7 @@ format:
 	uv run --with ruff ruff format --check .
 
 typecheck:
-	uv run --extra dev --with pydantic --with pydantic-settings mypy src
+	uv run --extra dev mypy src
 
 test:
 	uv run --extra dev python -m pytest
