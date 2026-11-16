@@ -1,0 +1,7 @@
+[
+  {"question": "What does the Retrieve API return?", "expected_source": "knowledge-bases.md"},
+  {"question": "Can the chunking strategy be changed after the data source is created?", "expected_source": "chunking.md"},
+  {"question": "What does faithfulness measure?", "expected_source": "evaluation.md"},
+  {"question": "What happens when a knowledge base has no indexed documents?", "expected_source": "knowledge-bases.md"},
+  {"question": "Why is overlap used when chunking?", "expected_source": "chunking.md"}
+]
